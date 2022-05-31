@@ -3,16 +3,243 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Melody Maker</title>
+    <title>Bassie Music Tracker</title>
+    <link rel="shortcut icon" href="data:,">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
 </head>
 <body>
-    <h1>Melody Maker</h1>
-    <div style="width:800px;height:600px;border:1px solid black"></div>
-    <p>
-        <button id="play-button">Play</button>
-    </p>
-    <p>Made by <a href="https://bplaat.nl/" target="_blank">Bastiaan van der Plaat</a></p>
+    <div id="app" class="section">
+        <div class="container">
+            <h1 class="title">Bassie Music Tracker</h1>
+            <div class="box">
+                <div class="columns">
+                    <div class="column">
+                        <div class="field">
+                            <label for="name" class="label">Song name</label>
+                            <input id="name" class="input" type="text" v-model="name">
+                        </div>
+                    </div>
+                    <div class="column">
+                        <div class="field">
+                            <label for="bpm" class="label">Beats per minute</label>
+                            <input id="bpm" class="input" type="number" v-model="bpm">
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-    <script src="./melody.js" type="module"></script>
+            <div class="columns">
+                <div v-for="track, index in tracks" class="column">
+                    <div class="box">
+                        <h2 class="title is-5 mb-3">
+                            Track {{ index + 1 }} [{{ track.current }}]
+                            <button class="delete is-pulled-right" @click.prevent="removeTrack(track)"></button>
+                        </h2>
+
+                        <div class="field">
+                            <div class="select is-fullwidth">
+                                <select v-model="track.type">
+                                    <option value="sine">Sine</option>
+                                    <option value="square">Square</option>
+                                    <option value="sawtooth">Sawtooth</option>
+                                    <option value="triangle">Triangle</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="field">
+                            <textarea class="textarea has-fixed-size" v-model="track.notes" rows="16" :tabindex="index + 1" :disabled="isPlaying"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="buttons">
+                <button class="button is-link" @click.prevent="addTrack" :disabled="isPlaying">Add track</button>
+                <button class="button is-success" @click.prevent="playPause">{{ isPlaying ? 'Pause' : 'Play' }}</button>
+                <button class="button is-danger" @click.prevent="stop">Stop</button>
+                <button class="button is-dark" @click.prevent="random">Random</button>
+            </div>
+
+            <p>Made by <a href="https://bplaat.nl" target="_blank">Bastiaan van der Plaat</a></p>
+        </div>
+    </div>
+    <script>
+function rand(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+const notes = {'REST':0,'B0':31,'C1':33,'CS1':35,'D1':37,'DS1':39,'E1':41,'F1':44,'FS1':46,'G1':49,'GS1':52,'A1':55,'AS1':58,'B1':62,'C2':65,'CS2':69,'D2':73,'DS2':78,'E2':82,'F2':87,'FS2':93,'G2':98,'GS2':104,'A2':110,'AS2':117,'B2':123,'C3':131,'CS3':139,'D3':147,'DS3':156,'E3':165,'F3':175,'FS3':185,'G3':196,'GS3':208,'A3':220,'AS3':233,'B3':247,'C4':262,'CS4':277,'D4':294,'DS4':311,'E4':330,'F4':349,'FS4':370,'G4':392,'GS4':415,'A4':440,'AS4':466,'B4':494,'C5':523,'CS5':554,'D5':587,'DS5':622,'E5':659,'F5':698,'FS5':740,'G5':784,'GS5':831,'A5':880,'AS5':932,'B5':988,'C6':1047,'CS6':1109,'D6':1175,'DS6':1245,'E6':1319,'F6':1397,'FS6':1480,'G6':1568,'GS6':1661,'A6':1760,'AS6':1865,'B6':1976,'C7':2093,'CS7':2217,'D7':2349,'DS7':2489,'E7':2637,'F7':2794,'FS7':2960,'G7':3136,'GS7':3322,'A7':3520,'AS7':3729,'B7':3951,'C8':4186,'CS8':4435,'D8':4699,'DS8':4978};
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const oscillators = [];
+const oscillatorsPlaying = [];
+
+const app = new Vue({
+    el: '#app',
+
+    data: {
+        isPlaying: false,
+        name: 'My random song',
+        bpm: 128,
+        tracks: [
+            { id: Date.now(), type: 'square', notes: '', current: 0 },
+            { id: Date.now() + 1, type: 'square', notes: '', current: 0 },
+            { id: Date.now() + 2, type: 'square', notes: '', current: 0 },
+            { id: Date.now() + 3, type: 'square', notes: '', current: 0 }
+        ]
+    },
+
+    created() {
+        if (localStorage.name != undefined) {
+            this.name = localStorage.name;
+        }
+        if (localStorage.bpm != undefined) {
+            this.bpm = localStorage.bpm;
+        }
+        if (localStorage.tracks != undefined) {
+            this.tracks = JSON.parse(localStorage.tracks);
+            this.stop();
+        }
+    },
+
+    watch: {
+        name(name) {
+            localStorage.name = name;
+        },
+        bpm(bpm) {
+            localStorage.bpm = bpm;
+        },
+        tracks: {
+            handler (tracks) {
+                // Update oscillators type
+                for (let i = 0; i < this.tracks.length; i++) {
+                    const track = this.tracks[i];
+                    if (oscillators[i] != undefined) {
+                        oscillators[i].type = track.type;
+                    }
+                }
+
+                // Save tracks info
+                localStorage.tracks = JSON.stringify(tracks);
+            },
+            deep: true
+        }
+    },
+
+    methods: {
+        addTrack() {
+            if (this.tracks.length < 6) {
+                this.tracks.push({ id: Date.now(), type: 'square', notes: '', current: 0 });
+            }
+        },
+
+        removeTrack(track) {
+            this.tracks = this.tracks.filter(otherTrack => otherTrack.id != track.id);
+        },
+
+        play() {
+            // Create missing oscillators and set right type
+            for (let i = 0; i < this.tracks.length; i++) {
+                const track = this.tracks[i];
+                if (oscillators[i] == undefined) {
+                    oscillators[i] = audioCtx.createOscillator();
+                    oscillators[i].start();
+                    oscillatorsPlaying[i] = false;
+                }
+                oscillators[i].type = track.type;
+            }
+
+            // Play note timeout
+            const playNote = (track, notes, index) => {
+                if (track.current >= notes.length) {
+                    if (oscillatorsPlaying[index]) {
+                        oscillatorsPlaying[index] = false;
+                        oscillators[index].disconnect(audioCtx.destination);
+                    }
+                    return;
+                }
+                const note = notes[track.current];
+                if (note.note > 0) {
+                    oscillators[index].frequency.setValueAtTime(note.note, audioCtx.currentTime);
+                } else {
+                    if (oscillatorsPlaying[index]) {
+                        oscillatorsPlaying[index] = false;
+                        oscillators[index].disconnect(audioCtx.destination);
+                    }
+                }
+                if (this.isPlaying) {
+                    if (!oscillatorsPlaying[index]) {
+                        oscillatorsPlaying[index] = true;
+                        oscillators[index].connect(audioCtx.destination);
+                    }
+                    track.current++;
+                    const wholenote = (60000 * 4) / Math.max(this.bpm, 60);
+                    const duration = note.divider > 0 ? wholenote / note.divider : (wholenote / Math.abs(note.divider)) * 1.5;
+                    setTimeout(playNote, duration, track, notes, index);
+                }
+            };
+
+            // Start playing
+            this.isPlaying = true;
+            for (let i = 0; i < this.tracks.length; i++) {
+                const track = this.tracks[i];
+                const trackNotes = track.notes.split('\n').map(line => line.trim()).filter(line => line != '')
+                    .map(line => line.split(' '))
+                    .filter(parts => parts.length == 1 || parts.length == 2)
+                    .map(parts => {
+                        const divider = parts[1] != undefined ? parseInt(parts[1].trim()) : 8;
+                        return { note: notes[parts[0].trim().toUpperCase()], divider };
+                    });
+                if (trackNotes.length > 0) {
+                    playNote(track, trackNotes, i);
+                }
+            }
+        },
+
+        pause() {
+            this.isPlaying = false;
+            for (let i = 0; i < oscillators.length; i++) {
+                const oscillator = oscillators[i];
+                if (oscillatorsPlaying[i]) {
+                    oscillatorsPlaying[i] = false;
+                    oscillator.disconnect(audioCtx.destination);
+                }
+            }
+        },
+
+        stop() {
+            this.pause();
+            for (const track of this.tracks) {
+                track.current = 0;
+            }
+        },
+
+        playPause() {
+            if (this.isPlaying) {
+                this.pause();
+            } else {
+                this.play();
+            }
+        },
+
+        random() {
+            if (this.isPlaying) {
+                this.stop();
+            }
+
+            this.tracks = [];
+            for (let i = 0; i < rand(2, 6); i++) {
+                let randomNotes = '';
+                const noteKeys = Object.keys(notes);
+                for (let j = 0; j < rand(100, 250); j++) {
+                    randomNotes += noteKeys[Math.floor(Math.random() * noteKeys.length)] + ' ' + rand(1, 8) * [-1, 1, 1, 1][rand(0, 3)] + '\n';
+                }
+                this.tracks.push({ id: Date.now() + i, type: ['sine', 'square', 'sawtooth', 'triangle'][rand(0, 3)], notes: randomNotes, current: 0 });
+            }
+        }
+    }
+});
+    </script>
 </body>
 </html>
