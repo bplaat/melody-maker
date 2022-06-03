@@ -20,7 +20,7 @@
 
             <div class="buttons">
                 <button class="button is-link" @click.prevent="createSong()">Create new song</button>
-                <button class="button is-success">Mutate this song</button>
+                <button class="button is-danger" @click.prevent="openBreedingModal()">Breed new song</button>
             </div>
 
             <div class="menu mb-5">
@@ -50,6 +50,56 @@
                 <p v-else><i class="has-text-grey">Create or select a song from the sidebar</i></p>
             </div>
         </div>
+
+        <div :class="{ modal: true, 'is-active': isBreeding }">
+            <div class="modal-background" @click="isBreeding = false"></div>
+
+            <div class="modal-card">
+                <div class="modal-card-head">
+                    <p class="modal-card-title">Breed a new song from two other songs</p>
+                    <button class="delete" @click.prevent="isBreeding = false"></button>
+                </div>
+
+                <div class="modal-card-body">
+                    <div class="columns">
+                        <div class="column">
+                            <div class="field">
+                                <label for="fatherSong" class="label">Father song</label>
+                                <div class="select is-fullwidth">
+                                    <select id="fatherSong" v-model="fatherSongId">
+                                        <option :value="song.id" v-for="song in songs">{{ song.name }}</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="buttons">
+                                <button class="button is-success">Play song</button>
+                            </div>
+                        </div>
+
+                        <div class="column">
+                            <div class="field">
+                                <label for="motherSong" class="label">Mother song</label>
+                                <div class="select is-fullwidth">
+                                    <select id="motherSong" v-model="motherSongId">
+                                        <option :value="song.id" v-for="song in songs">{{ song.name }}</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="buttons">
+                                <button class="button is-success">Play song</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-card-foot">
+                    <button class="button is-danger">BREED!!!</button>
+                    <button class="button" @click.prevent="isBreeding = false">Cancel</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <template id="song-editor-template">
@@ -64,6 +114,7 @@
                             <input id="name" class="input" type="text" v-model="song.name">
                         </div>
                     </div>
+
                     <div class="column">
                         <div class="field">
                             <label for="bpm" class="label">Beats per minute</label>
@@ -265,7 +316,11 @@ const app = new Vue({
 
     data: {
         songs: [],
-        selectedSong: null
+        selectedSong: null,
+
+        isBreeding: false,
+        fatherSongId: null,
+        motherSongId: null
     },
 
     watch: {
@@ -298,10 +353,18 @@ const app = new Vue({
     },
 
     methods: {
+        openBreedingModal() {
+            if (this.songs.length >= 2) {
+                this.fatherSongId = this.songs[this.songs.length - 2].id;
+                this.motherSongId = this.songs[this.songs.length - 1].id;
+            }
+            this.isBreeding = true;
+        },
+
         createSong() {
             this.songs.push({
                 id: createUUID(),
-                name: 'Song ' + (this.songs.length + 1),
+                name: 'Song at ' + new Date().toLocaleTimeString(),
                 bpm: 128,
                 tracks: [
                     { id: createUUID(), type: 'square', notes: '', current: 0 },
