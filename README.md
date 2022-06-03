@@ -1,2 +1,2 @@
-# Genetic Melody Maker Music Tracker Thingy
-A machine learning school project to create a melody with a genetic algorithm
+# Bassie Genetic Music Tracker
+A machine learning school project to create music with a genetic algorithm

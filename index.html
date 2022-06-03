@@ -7,35 +7,79 @@
     <link rel="shortcut icon" href="data:,">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
     <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+    <style>
+    html,body,#app{height:100%}
+    #app{display:flex}.main,.fill{flex:1}
+    .sidebar{width:16rem;display:flex;flex-direction:column;overflow-y:auto}
+    </style>
 </head>
 <body>
-    <div id="app" class="section">
-        <div class="container">
-            <h1 class="title">Bassie Music Tracker</h1>
+    <div id="app">
+        <div class="box sidebar has-background-white-bis m-0">
+            <h1 class="title is-4 mb-5">Bassie Genetic Music Tracker</h1>
+
+            <div class="buttons">
+                <button class="button is-link" @click.prevent="createSong()">Create new song</button>
+                <button class="button is-success">Mutate this song</button>
+            </div>
+
+            <div class="menu mb-5">
+                <p class="menu-label">Songs</p>
+                <ul class="menu-list" v-if="songs.length > 0">
+                    <li v-for="song in songs" style="position: relative;">
+                        <a href="#" :class="{ 'is-active': selectedSong != null && selectedSong.id == song.id }" @click.prevent="selectSong(song)">
+                            {{ song.name.length > 0 ? song.name : 'Unnamed song' }}
+                        </a>
+                        <button style="position: absolute; top: 0.5rem; right: 0.5rem;" class="delete is-pulled-right" @click.prevent="removeSong(song)"></button>
+                    </li>
+                </ul>
+                <p v-else><i class="has-text-grey">No songs exists</i></p>
+            </div>
+
+            <div class="fill"></div>
+
+            <p>
+                Made with ❤️ by<br/>
+                <a href="https://bplaat.nl" target="_blank">Bastiaan van der Plaat</a>
+            </p>
+        </div>
+
+        <div class="main">
+            <div class="section">
+                <song-editor ref="songEditor" v-if="selectedSong != null" :song="selectedSong"></song-editor>
+                <p v-else><i class="has-text-grey">Create or select a song from the sidebar</i></p>
+            </div>
+        </div>
+    </div>
+
+    <template id="song-editor-template">
+        <div class="box">
+            <h2 class="title is-4">Bassie Song Editor</h2>
+
             <div class="box">
                 <div class="columns">
                     <div class="column">
                         <div class="field">
                             <label for="name" class="label">Song name</label>
-                            <input id="name" class="input" type="text" v-model="name">
+                            <input id="name" class="input" type="text" v-model="song.name">
                         </div>
                     </div>
                     <div class="column">
                         <div class="field">
                             <label for="bpm" class="label">Beats per minute</label>
-                            <input id="bpm" class="input" type="number" v-model="bpm">
+                            <input id="bpm" class="input" type="number" v-model="song.bpm">
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="columns">
-                <div v-for="track, index in tracks" class="column">
+                <div v-for="track, index in song.tracks" class="column">
                     <div class="box">
-                        <h2 class="title is-5 mb-3">
+                        <label :for="'track' + (index + 1)" class="title is-5 mb-3" style="display: block;">
                             Track {{ index + 1 }} [{{ track.current }}]
-                            <button class="delete is-pulled-right" @click.prevent="removeTrack(track)"></button>
-                        </h2>
+                            <button class="delete is-pulled-right" @click.prevent="removeTrack(track)" :disabled="isPlaying"></button>
+                        </label>
 
                         <div class="field">
                             <div class="select is-fullwidth">
@@ -49,7 +93,8 @@
                         </div>
 
                         <div class="field">
-                            <textarea class="textarea has-fixed-size" v-model="track.notes" rows="16" :tabindex="index + 1" :disabled="isPlaying"></textarea>
+                            <textarea :id="'track' + (index + 1)" class="textarea has-fixed-size" v-model="track.notes"
+                                rows="16" :tabindex="index + 1" :disabled="isPlaying"></textarea>
                         </div>
                     </div>
                 </div>
@@ -60,13 +105,24 @@
                 <button class="button is-danger" @click.prevent="stop">Stop</button>
                 <button class="button is-dark" @click.prevent="random">Random</button>
             </div>
-
-            <p>Made by <a href="https://bplaat.nl" target="_blank">Bastiaan van der Plaat</a></p>
         </div>
-    </div>
+    </template>
+
     <script>
 function rand(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function createUUID() {
+    const s = [];
+    const hexDigits = '0123456789abcdef';
+    for (let i = 0; i < 36; i++) {
+        s[i] = hexDigits.substr(Math.floor(Math.random() * 0x10), 1);
+    }
+    s[14] = '4';
+    s[19] = hexDigits.substr((s[19] & 0x3) | 0x8, 1);
+    s[8] = s[13] = s[18] = s[23] = '-';
+    return s.join('');
 }
 
 const notes = {'REST':0,'B0':31,'C1':33,'CS1':35,'D1':37,'DS1':39,'E1':41,'F1':44,'FS1':46,'G1':49,'GS1':52,'A1':55,'AS1':58,'B1':62,'C2':65,'CS2':69,'D2':73,'DS2':78,'E2':82,'F2':87,'FS2':93,'G2':98,'GS2':104,'A2':110,'AS2':117,'B2':123,'C3':131,'CS3':139,'D3':147,'DS3':156,'E3':165,'F3':175,'FS3':185,'G3':196,'GS3':208,'A3':220,'AS3':233,'B3':247,'C4':262,'CS4':277,'D4':294,'DS4':311,'E4':330,'F4':349,'FS4':370,'G4':392,'GS4':415,'A4':440,'AS4':466,'B4':494,'C5':523,'CS5':554,'D5':587,'DS5':622,'E5':659,'F5':698,'FS5':740,'G5':784,'GS5':831,'A5':880,'AS5':932,'B5':988,'C6':1047,'CS6':1109,'D6':1175,'DS6':1245,'E6':1319,'F6':1397,'FS6':1480,'G6':1568,'GS6':1661,'A6':1760,'AS6':1865,'B6':1976,'C7':2093,'CS7':2217,'D7':2349,'DS7':2489,'E7':2637,'F7':2794,'FS7':2960,'G7':3136,'GS7':3322,'A7':3520,'AS7':3729,'B7':3951,'C8':4186,'CS8':4435,'D8':4699,'DS8':4978};
@@ -75,73 +131,31 @@ const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 const oscillators = [];
 const oscillatorsPlaying = [];
 
-const app = new Vue({
-    el: '#app',
+Vue.component('song-editor', {
+    template: document.getElementById('song-editor-template').innerHTML,
 
-    data: {
-        isPlaying: false,
-        name: 'My random song',
-        bpm: 128,
-        tracks: [
-            { id: Date.now(), type: 'square', notes: '', current: 0 },
-            { id: Date.now() + 1, type: 'square', notes: '', current: 0 },
-            { id: Date.now() + 2, type: 'square', notes: '', current: 0 },
-            { id: Date.now() + 3, type: 'square', notes: '', current: 0 }
-        ]
-    },
-
-    created() {
-        if (localStorage.name != undefined) {
-            this.name = localStorage.name;
-        }
-        if (localStorage.bpm != undefined) {
-            this.bpm = localStorage.bpm;
-        }
-        if (localStorage.tracks != undefined) {
-            this.tracks = JSON.parse(localStorage.tracks);
-            this.stop();
-        }
-    },
-
-    watch: {
-        name(name) {
-            localStorage.name = name;
-        },
-        bpm(bpm) {
-            localStorage.bpm = bpm;
-        },
-        tracks: {
-            handler (tracks) {
-                // Update oscillators type
-                for (let i = 0; i < this.tracks.length; i++) {
-                    const track = this.tracks[i];
-                    if (oscillators[i] != undefined) {
-                        oscillators[i].type = track.type;
-                    }
-                }
-
-                // Save tracks info
-                localStorage.tracks = JSON.stringify(tracks);
-            },
-            deep: true
+    props: [ 'song' ],
+    data() {
+        return {
+            isPlaying: false
         }
     },
 
     methods: {
         addTrack() {
-            if (this.tracks.length < 6) {
-                this.tracks.push({ id: Date.now(), type: 'square', notes: '', current: 0 });
+            if (this.song.tracks.length < 6) {
+                this.song.tracks.push({ id: createUUID(), type: 'square', notes: '', current: 0 });
             }
         },
 
         removeTrack(track) {
-            this.tracks = this.tracks.filter(otherTrack => otherTrack.id != track.id);
+            this.song.tracks = this.song.tracks.filter(otherTrack => otherTrack.id != track.id);
         },
 
         play() {
             // Create missing oscillators and set right type
-            for (let i = 0; i < this.tracks.length; i++) {
-                const track = this.tracks[i];
+            for (let i = 0; i < this.song.tracks.length; i++) {
+                const track = this.song.tracks[i];
                 if (oscillators[i] == undefined) {
                     oscillators[i] = audioCtx.createOscillator();
                     oscillators[i].start();
@@ -174,7 +188,7 @@ const app = new Vue({
                         oscillators[index].connect(audioCtx.destination);
                     }
                     track.current++;
-                    const wholenote = (60000 * 4) / Math.max(this.bpm, 60);
+                    const wholenote = (60000 * 4) / Math.max(this.song.bpm, 60);
                     const duration = note.divider > 0 ? wholenote / note.divider : (wholenote / Math.abs(note.divider)) * 1.5;
                     setTimeout(playNote, duration, track, notes, index);
                 }
@@ -182,8 +196,8 @@ const app = new Vue({
 
             // Start playing
             this.isPlaying = true;
-            for (let i = 0; i < this.tracks.length; i++) {
-                const track = this.tracks[i];
+            for (let i = 0; i < this.song.tracks.length; i++) {
+                const track = this.song.tracks[i];
                 const trackNotes = track.notes.split('\n').map(line => line.trim()).filter(line => line != '')
                     .map(line => line.split(' '))
                     .filter(parts => parts.length == 1 || parts.length == 2)
@@ -210,7 +224,7 @@ const app = new Vue({
 
         stop() {
             this.pause();
-            for (const track of this.tracks) {
+            for (const track of this.song.tracks) {
                 track.current = 0;
             }
         },
@@ -228,15 +242,87 @@ const app = new Vue({
                 this.stop();
             }
 
-            this.tracks = [];
+            this.song.tracks = [];
             for (let i = 0; i < rand(2, 6); i++) {
                 let randomNotes = '';
                 const noteKeys = Object.keys(notes);
                 for (let j = 0; j < rand(100, 250); j++) {
                     randomNotes += noteKeys[Math.floor(Math.random() * noteKeys.length)] + ' ' + rand(1, 8) * [-1, 1, 1, 1][rand(0, 3)] + '\n';
                 }
-                this.tracks.push({ id: Date.now() + i, type: ['sine', 'square', 'sawtooth', 'triangle'][rand(0, 3)], notes: randomNotes, current: 0 });
+                this.song.tracks.push({
+                    id: createUUID(),
+                    type: ['sine', 'square', 'sawtooth', 'triangle'][rand(0, 3)],
+                    notes: randomNotes,
+                    current: 0
+                });
             }
+        }
+    }
+});
+
+const app = new Vue({
+    el: '#app',
+
+    data: {
+        songs: [],
+        selectedSong: null
+    },
+
+    watch: {
+        songs: {
+            handler (songs) {
+                localStorage.setItem('songs', JSON.stringify(songs));
+            },
+            deep: true
+        },
+        selectedSong(selectedSong) {
+            if (this.$refs.songEditor != undefined) {
+                this.$refs.songEditor.stop();
+            }
+
+            if (selectedSong != null) {
+                localStorage.setItem('selectedSongId', selectedSong.id);
+            } else {
+                localStorage.removeItem('selectedSongId');
+            }
+        }
+    },
+
+    created() {
+        if (localStorage.getItem('songs') != null) {
+            this.songs = JSON.parse(localStorage.getItem('songs'));
+        }
+        if (localStorage.getItem('selectedSongId') != null) {
+            this.selectedSong = this.songs.find(song => song.id == localStorage.getItem('selectedSongId'));
+        }
+    },
+
+    methods: {
+        createSong() {
+            this.songs.push({
+                id: createUUID(),
+                name: 'Song ' + (this.songs.length + 1),
+                bpm: 128,
+                tracks: [
+                    { id: createUUID(), type: 'square', notes: '', current: 0 },
+                    { id: createUUID(), type: 'square', notes: '', current: 0 },
+                    { id: createUUID(), type: 'square', notes: '', current: 0 }
+                ]
+            });
+            this.selectedSong = this.songs[this.songs.length - 1];
+        },
+
+        selectSong(song) {
+            if (this.selectedSong == null || this.selectedSong.id != song.id) {
+                this.selectedSong = song;
+            }
+        },
+
+        removeSong(song) {
+            if (this.selectedSong != null && this.selectedSong.id == song.id) {
+                this.selectedSong = null;
+            }
+            this.songs = this.songs.filter(otherSong => otherSong.id != song.id);
         }
     }
 });
