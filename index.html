@@ -6,7 +6,7 @@
     <title>Bassie Music Tracker</title>
     <link rel="shortcut icon" href="data:,">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.min.js"></script>
     <style>
     html,body,#app{height:100%}
     #app{display:flex}.main,.fill{flex:1}
@@ -134,7 +134,7 @@
 
                         <div class="field">
                             <div class="select is-fullwidth">
-                                <select v-model="track.type">
+                                <select v-model="track.type" :disabled="isPlaying">
                                     <option value="sine">Sine</option>
                                     <option value="square">Square</option>
                                     <option value="sawtooth">Sawtooth</option>
@@ -154,7 +154,8 @@
                 <button class="button is-link" @click.prevent="addTrack" :disabled="isPlaying">Add track</button>
                 <button class="button is-success" @click.prevent="playPause">{{ isPlaying ? 'Pause' : 'Play' }}</button>
                 <button class="button is-danger" @click.prevent="stop">Stop</button>
-                <button class="button is-dark" @click.prevent="random">Random</button>
+                <button class="button is-dark" @click.prevent="random('major')">Random major</button>
+                <button class="button is-dark" @click.prevent="random('minor')">Random minor</button>
             </div>
         </div>
     </template>
@@ -177,6 +178,32 @@ function createUUID() {
 }
 
 const notes = {'REST':0,'B0':31,'C1':33,'CS1':35,'D1':37,'DS1':39,'E1':41,'F1':44,'FS1':46,'G1':49,'GS1':52,'A1':55,'AS1':58,'B1':62,'C2':65,'CS2':69,'D2':73,'DS2':78,'E2':82,'F2':87,'FS2':93,'G2':98,'GS2':104,'A2':110,'AS2':117,'B2':123,'C3':131,'CS3':139,'D3':147,'DS3':156,'E3':165,'F3':175,'FS3':185,'G3':196,'GS3':208,'A3':220,'AS3':233,'B3':247,'C4':262,'CS4':277,'D4':294,'DS4':311,'E4':330,'F4':349,'FS4':370,'G4':392,'GS4':415,'A4':440,'AS4':466,'B4':494,'C5':523,'CS5':554,'D5':587,'DS5':622,'E5':659,'F5':698,'FS5':740,'G5':784,'GS5':831,'A5':880,'AS5':932,'B5':988,'C6':1047,'CS6':1109,'D6':1175,'DS6':1245,'E6':1319,'F6':1397,'FS6':1480,'G6':1568,'GS6':1661,'A6':1760,'AS6':1865,'B6':1976,'C7':2093,'CS7':2217,'D7':2349,'DS7':2489,'E7':2637,'F7':2794,'FS7':2960,'G7':3136,'GS7':3322,'A7':3520,'AS7':3729,'B7':3951,'C8':4186,'CS8':4435,'D8':4699,'DS8':4978};
+const majorChords = [
+    ['C', 'E', 'G'],
+    ['CS', 'F', 'GS'],
+    ['D', 'FS', 'A'],
+    ['DS', 'G', 'AS'],
+    ['E', 'GS', 'B'],
+    ['F', 'A', 'C'],
+    ['FS', 'AS', 'CS'],
+    ['G', 'B', 'D'],
+    ['GS', 'C', 'DS'],
+    ['A', 'CS', 'E'],
+    ['AS', 'D', 'F'],
+    ['B', 'DS', 'FS']
+];
+const minorChords = [
+    ['CS', 'E', 'GS'],
+    ['D', 'F', 'A'],
+    ['DS', 'FS', 'AS'],
+    ['E', 'G', 'B'],
+    ['FS', 'A', 'CS'],
+    ['GS', 'B', 'DS'],
+    ['GS', 'C', 'DS'],
+    ['A', 'C', 'E'],
+    ['AS', 'CS', 'F'],
+    ['B', 'D', 'FS']
+];
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 const oscillators = [];
@@ -288,24 +315,26 @@ Vue.component('song-editor', {
             }
         },
 
-        random() {
+        random(type) {
             if (this.isPlaying) {
                 this.stop();
             }
 
+            const chords = type == 'major' ? majorChords : minorChords;
+            const pitch = rand(3, 5);
+
+            this.song.bpm = rand(80, 200);
             this.song.tracks = [];
-            for (let i = 0; i < rand(2, 6); i++) {
-                let randomNotes = '';
-                const noteKeys = Object.keys(notes);
-                for (let j = 0; j < rand(100, 250); j++) {
-                    randomNotes += noteKeys[Math.floor(Math.random() * noteKeys.length)] + ' ' + rand(1, 8) * [-1, 1, 1, 1][rand(0, 3)] + '\n';
+            for (let i = 0; i < 3; i++) {
+                this.song.tracks.push({ id: createUUID(), type: ['sine', 'square', 'sawtooth', 'triangle'][rand(0, 3)], notes: '', current: 0 });
+            }
+
+            for (let i = 0; i < rand(100, 250); i++) {
+                const randomChord = chords[rand(0, chords.length - 1)];
+                const chordDuration = rand(2, 8) * [-1, 1, 1, 1][rand(0, 3)];
+                for (let j = 0; j < randomChord.length; j++) {
+                    this.song.tracks[j].notes += `${randomChord[j]}${pitch} ${chordDuration}\n`;
                 }
-                this.song.tracks.push({
-                    id: createUUID(),
-                    type: ['sine', 'square', 'sawtooth', 'triangle'][rand(0, 3)],
-                    notes: randomNotes,
-                    current: 0
-                });
             }
         }
     }
@@ -354,6 +383,9 @@ const app = new Vue({
 
     methods: {
         openBreedingModal() {
+            if (this.$refs.songEditor != undefined) {
+                this.$refs.songEditor.stop();
+            }
             if (this.songs.length >= 2) {
                 this.fatherSongId = this.songs[this.songs.length - 2].id;
                 this.motherSongId = this.songs[this.songs.length - 1].id;
