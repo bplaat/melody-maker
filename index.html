@@ -71,10 +71,6 @@
                                     </select>
                                 </div>
                             </div>
-
-                            <div class="buttons">
-                                <button class="button is-success">Play song</button>
-                            </div>
                         </div>
 
                         <div class="column">
@@ -86,16 +82,12 @@
                                     </select>
                                 </div>
                             </div>
-
-                            <div class="buttons">
-                                <button class="button is-success">Play song</button>
-                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="modal-card-foot">
-                    <button class="button is-danger">BREED!!!</button>
+                    <button class="button is-danger" @click.prevent="breedSong">BREED!!!</button>
                     <button class="button" @click.prevent="isBreeding = false">Cancel</button>
                 </div>
             </div>
@@ -127,7 +119,7 @@
             <div class="columns">
                 <div v-for="track, index in song.tracks" class="column">
                     <div class="box">
-                        <label :for="'track' + (index + 1)" class="title is-5 mb-3" style="display: block;">
+                        <label :for="`track${index + 1}`" class="title is-5 mb-3" style="display: block;">
                             Track {{ index + 1 }} [{{ track.current }}]
                             <button class="delete is-pulled-right" @click.prevent="removeTrack(track)" :disabled="isPlaying"></button>
                         </label>
@@ -144,7 +136,7 @@
                         </div>
 
                         <div class="field">
-                            <textarea :id="'track' + (index + 1)" class="textarea has-fixed-size" v-model="track.notes"
+                            <textarea :id="`track${index + 1}`" class="textarea has-fixed-size" v-model="track.notes"
                                 rows="16" :tabindex="index + 1" :disabled="isPlaying"></textarea>
                         </div>
                     </div>
@@ -227,7 +219,9 @@ Vue.component('song-editor', {
         },
 
         removeTrack(track) {
-            this.song.tracks = this.song.tracks.filter(otherTrack => otherTrack.id != track.id);
+            if (this.song.tracks.length > 1) {
+                this.song.tracks = this.song.tracks.filter(otherTrack => otherTrack.id != track.id);
+            }
         },
 
         play() {
@@ -393,10 +387,46 @@ const app = new Vue({
             this.isBreeding = true;
         },
 
+        breedSong() {
+            this.isBreeding = false;
+
+            const fatherSong = this.songs.find(song => song.id == this.fatherSongId);
+            const motherSong = this.songs.find(song => song.id == this.motherSongId);
+
+            // Create new child song
+            const song = {
+                id: createUUID(),
+                name: `Breed at ${new Date().toLocaleTimeString()}`,
+                bpm: rand(1, 2) == 1 ? fatherSong.bpm : motherSong.bpm,
+                tracks: []
+            };
+            this.songs.push(song);
+
+            // Mutate duration sometimes
+            if (rand(1, 5) == 1) {
+                song.bpm += rand(-10, 10);
+            }
+
+            // Create new tracks by merging lines togther
+            for (let i = 0; i < Math.min(fatherSong.tracks.length, motherSong.tracks.length); i++) {
+                const track = { id: createUUID(), type: rand(1, 2) == 1 ? fatherSong.tracks[i].type : motherSong.tracks[i].type, notes: '', current: 0 };
+                song.tracks.push(track);
+
+                const fatherLines = fatherSong.tracks[i].notes.split('\n');
+                const motherLines = motherSong.tracks[i].notes.split('\n');
+                for (let j = 0; j < rand(Math.min(fatherLines.length, motherLines.length), Math.max(fatherLines.length, motherLines.length)); j++) {
+                    track.notes += `${(rand(1, 2) == 1 && fatherLines.length > j || motherLines.length < j) ? fatherLines[j] : motherLines[j]}\n`;
+                }
+            }
+
+            // Open the new song
+            this.selectedSong = this.songs[this.songs.length - 1];
+        },
+
         createSong() {
             this.songs.push({
                 id: createUUID(),
-                name: 'Song at ' + new Date().toLocaleTimeString(),
+                name: `Song at ${new Date().toLocaleTimeString()}`,
                 bpm: 128,
                 tracks: [
                     { id: createUUID(), type: 'square', notes: '', current: 0 },
